@@ -120,9 +120,11 @@ auth.onAuthStateChanged(user => {
   const emailTxt = getEl('user-email-txt');
   const authBtnTxt = getEl('auth-btn-txt');
   const avatar = getEl('user-avatar-img');
+  const authDot = getEl('auth-status-dot');
 
   if (user) {
       currentUid = user.uid;
+      if(authDot) authDot.style.background = '#10b981';
       if(nameTxt) nameTxt.textContent = user.displayName || "مستخدم";
       if(emailTxt) emailTxt.textContent = user.email;
       if(authBtnTxt) authBtnTxt.textContent = "تسجيل خروج";
@@ -131,6 +133,7 @@ auth.onAuthStateChanged(user => {
       syncOnceThenListen(user.uid);
   } else {
       currentUid = null;
+      if(authDot) authDot.style.background = '#ef4444';
       if(nameTxt) nameTxt.textContent = "مستخدم زائر";
       if(emailTxt) emailTxt.textContent = "سجل الدخول للمزامنة";
       if(authBtnTxt) authBtnTxt.textContent = "تسجيل دخول";

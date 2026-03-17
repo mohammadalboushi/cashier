@@ -30,7 +30,10 @@
 </div>
 
 <div style="display: flex; align-items: center; margin-bottom: 8px; position: relative;">
-    <button id="settings-btn" onclick="openSettingsMenu()"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg></button>
+    <button id="settings-btn" onclick="openSettingsMenu()" style="position: relative;">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+    <div id="auth-status-dot" style="position: absolute; top: 6px; right: 6px; width: 10px; height: 10px; border-radius: 50%; background: #ef4444; border: 2px solid #fff; transition: 0.3s;"></div>
+</button>
     <input type="text" id="main-search-input" placeholder="🔍 بحث..." oninput="searchMainItems(this.value)" style="width: 80px; margin-right: 5px; padding: 5px 8px; border-radius: 10px; border: 1px solid #e0e0e0; font-family: inherit; font-size: 11px; outline: none;">
     <div id="main-search-results" style="display:none; position:absolute; top:45px; right:50px; background:#fff; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.15); z-index:2000; max-height:200px; overflow-y:auto; width:150px;"></div>
     <div id="input-box" onclick="activatePrice()" style="margin-right: 5px; flex: 1;">0</div>
