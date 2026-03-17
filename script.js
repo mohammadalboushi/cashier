@@ -185,21 +185,40 @@ function mergeLocalAndCloud(cloudData) {
   let localBills = JSON.parse(localStorage.getItem('savedBills')) || [];
   let localCusts = JSON.parse(localStorage.getItem('customers')) || [];
   
-  let mergedItems = cloudData && cloudData.itemData ? cloudData.itemData : localItems;
+  // تجهيز المتغيرات للدمج
+  let mergedItems = cloudData && cloudData.itemData ? JSON.parse(JSON.stringify(cloudData.itemData)) : localItems;
   let mergedBills = cloudData && cloudData.savedBills ? [...cloudData.savedBills] : [];
   let mergedCusts = cloudData && cloudData.customers ? [...cloudData.customers] : [];
   let mergedRate = cloudData && cloudData.rate ? cloudData.rate : (parseFloat(localStorage.getItem('exchangeRate')) || 89000);
 
+  // دمج الأصناف بذكاء (الإضافة الجديدة)
+  if (cloudData && cloudData.itemData) {
+      ['col1', 'col2', 'col3', 'col4'].forEach(col => {
+          if (localItems[col]) {
+              localItems[col].forEach(localItem => {
+                  const exists = mergedItems[col].find(cloudItem => cloudItem.name === localItem.name);
+                  // إذا الصنف مو موجود بالسحابة واسمه مو فاضي، ضيفه
+                  if (!exists && localItem.name.trim() !== "") {
+                      mergedItems[col].push(localItem);
+                  }
+              });
+          }
+      });
+  }
+
+  // دمج الفواتير
   localBills.forEach(lb => {
       const exists = mergedBills.find(cb => cb.time === lb.time && cb.total === lb.total);
       if(!exists) mergedBills.push(lb);
   });
 
+  // دمج الزبائن
   localCusts.forEach(lc => {
       const exists = mergedCusts.find(cc => cc.name === lc.name);
       if(!exists) mergedCusts.push(lc);
   });
 
+  // تنظيف التخزين المحلي بعد الدمج لضمان الخصوصية
   localStorage.removeItem('itemData');
   localStorage.removeItem('savedBills');
   localStorage.removeItem('customers');
