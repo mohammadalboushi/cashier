@@ -283,6 +283,11 @@ function saveData() {
       localStorage.setItem('savedBills', JSON.stringify(savedBills));
       localStorage.setItem('customers', JSON.stringify(customers));
       localStorage.setItem('exchangeRate', rate);
+      
+      // تحديث الشاشة فوراً في وضع الأوفلاين (ليعمل مثل السحابة تماماً)
+      renderItems();
+      if(!getEl('bills-modal').classList.contains('hidden')) renderBillsList();
+      if(!getEl('debt-manage-modal').classList.contains('hidden')) renderCustomerList('manage');
   }
 }
 
@@ -1080,7 +1085,16 @@ function openJsonImport() {
     fileInput.click();
 }
 
-async function clearAllData() { if(await confirmModal("حذف كل شيء؟")) { localStorage.clear(); location.reload(); } }
+async function clearAllData() { 
+    if(await confirmModal("حذف كل شيء نهائياً؟")) { 
+        if (currentUid) {
+            // مسح البيانات من سحابة جوجل إذا كان المستخدم مسجل دخول
+            await db.collection('midoCashier').doc(currentUid).delete();
+        }
+        localStorage.clear(); 
+        location.reload(); 
+    } 
+}
 
 function alertModal(msg) { 
     getEl('alert-msg').innerHTML = msg; showModal('custom-alert'); 
