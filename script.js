@@ -227,18 +227,37 @@ function mergeLocalAndCloud(cloudData) {
 }
 
 function syncOnceThenListen(uid) {
-  db.collection('midoCashier').doc(uid).get().then(doc => {
-      let cloudData = doc.exists ? doc.data() : null;
-      const merged = mergeLocalAndCloud(cloudData);
-      itemData = merged.itemData;
-      savedBills = merged.savedBills;
-      customers = merged.customers;
-      rate = merged.rate;
-      saveDataToCloud();
+  // نتحقق أولاً إذا كان في بيانات محلية مسجلة وقت الأوفلاين وبحاجة لدمج
+  const hasLocalData = localStorage.getItem('itemData') || localStorage.getItem('savedBills') || localStorage.getItem('customers');
+
+  if (hasLocalData) {
+      // إذا في بيانات، لازم نجبر الكود يجيب الداتا من السيرفر مباشرة (source: 'server') عشان ما يمسح القديم بسبب الكاش
+      db.collection('midoCashier').doc(uid).get({ source: 'server' }).then(doc => {
+          let cloudData = doc.exists ? doc.data() : null;
+          const merged = mergeLocalAndCloud(cloudData);
+          itemData = merged.itemData;
+          savedBills = merged.savedBills;
+          customers = merged.customers;
+          rate = merged.rate;
+          saveDataToCloud();
+          setupRealtimeListener(uid);
+      }).catch(err => {
+          // في حال فشل الاتصال بالسيرفر، بنجرب الطريقة العادية
+          db.collection('midoCashier').doc(uid).get().then(doc => {
+              let cloudData = doc.exists ? doc.data() : null;
+              const merged = mergeLocalAndCloud(cloudData);
+              itemData = merged.itemData;
+              savedBills = merged.savedBills;
+              customers = merged.customers;
+              rate = merged.rate;
+              saveDataToCloud();
+              setupRealtimeListener(uid);
+          }).catch(e => setupRealtimeListener(uid));
+      });
+  } else {
+      // إذا مافي بيانات محلية بدها دمج، بنشغل المستمع الفوري مباشرة بدون ما نكتب أو نمسح أي شي عالسحابة
       setupRealtimeListener(uid);
-  }).catch(err => {
-      setupRealtimeListener(uid);
-  });
+  }
 }
 
 function setupRealtimeListener(uid) {
