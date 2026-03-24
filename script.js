@@ -21,7 +21,7 @@ let currentUid = null;
 let unsubscribeData = null;
 
 const defaultData = { col1: [], col2: [], col3: [], col4: [] };
-let itemData = { col1: [], col2: [], col3: [], col4: [] };
+let itemData = defaultData;
 let savedBills = [];
 let customers = [];
 let rate = 89000;
@@ -58,6 +58,7 @@ if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js').catch(err => console.log(err));
 }
 
+// === التوافق مع زر الرجوع في الموبايل ===
 function openSettingsMenu() {
     getEl('menu-overlay').classList.add('active');
     getEl('settings-menu').classList.add('open');
@@ -112,6 +113,7 @@ function closeAllModals() {
     const receiptBox = getEl('receipt');
     if(receiptBox) receiptBox.classList.remove('show');
 }
+// ========================================================
 
 auth.onAuthStateChanged(user => {
   const nameTxt = getEl('user-name-txt');
@@ -139,11 +141,11 @@ auth.onAuthStateChanged(user => {
       
       if(unsubscribeData) { unsubscribeData(); unsubscribeData = null; }
       
-      itemData = JSON.parse(localStorage.getItem('itemData_mob')) || { col1: [], col2: [], col3: [], col4: [] };
-      savedBills = JSON.parse(localStorage.getItem('savedBills_mob')) || [];
-      customers = JSON.parse(localStorage.getItem('customers_mob')) || [];
-      rate = parseFloat(localStorage.getItem('exchangeRate_mob')) || 89000;
-      settingsPassword = localStorage.getItem('settingsPassword_mob') || null;
+      itemData = JSON.parse(localStorage.getItem('itemData')) || defaultData;
+      savedBills = JSON.parse(localStorage.getItem('savedBills')) || [];
+      customers = JSON.parse(localStorage.getItem('customers')) || [];
+      rate = parseFloat(localStorage.getItem('exchangeRate')) || 89000;
+      settingsPassword = localStorage.getItem('settingsPassword') || null;
       
       renderItems();
       renderCustomerList('manage');
@@ -159,10 +161,10 @@ function toggleGoogleAuth() {
       confirmModal("هل تريد تسجيل الخروج؟ سيتم مسح البيانات من الشاشة لحمايتها.").then(res => {
           if (res) {
               auth.signOut().then(() => {
-                  localStorage.removeItem('itemData_mob');
-                  localStorage.removeItem('savedBills_mob');
-                  localStorage.removeItem('customers_mob');
-                  itemData = { col1: [], col2: [], col3: [], col4: [] };
+                  localStorage.removeItem('itemData');
+                  localStorage.removeItem('savedBills');
+                  localStorage.removeItem('customers');
+                  itemData = defaultData;
                   savedBills = [];
                   customers = [];
                   renderItems();
@@ -179,44 +181,58 @@ function toggleGoogleAuth() {
 }
 
 function mergeLocalAndCloud(cloudData) {
-  let localItems = JSON.parse(localStorage.getItem('itemData_mob')) || { col1: [], col2: [], col3: [], col4: [] };
-  let localBills = JSON.parse(localStorage.getItem('savedBills_mob')) || [];
-  let localCusts = JSON.parse(localStorage.getItem('customers_mob')) || [];
+  let localItems = JSON.parse(localStorage.getItem('itemData')) || defaultData;
+  let localBills = JSON.parse(localStorage.getItem('savedBills')) || [];
+  let localCusts = JSON.parse(localStorage.getItem('customers')) || [];
   
-  let mergedItems = { col1: [], col2: [], col3: [], col4: [] };
-  
-  if (cloudData && cloudData.itemData && cloudData.itemData.col1) {
-      mergedItems = JSON.parse(JSON.stringify(cloudData.itemData));
-  } else {
-      mergedItems = JSON.parse(JSON.stringify(localItems));
-  }
-
+  // تجهيز المتغيرات للدمج
+  let mergedItems = cloudData && cloudData.itemData ? JSON.parse(JSON.stringify(cloudData.itemData)) : localItems;
   let mergedBills = cloudData && cloudData.savedBills ? [...cloudData.savedBills] : [];
   let mergedCusts = cloudData && cloudData.customers ? [...cloudData.customers] : [];
-  let mergedRate = cloudData && cloudData.rate ? cloudData.rate : (parseFloat(localStorage.getItem('exchangeRate_mob')) || 89000);
+  let mergedRate = cloudData && cloudData.rate ? cloudData.rate : (parseFloat(localStorage.getItem('exchangeRate')) || 89000);
 
+  // دمج الأصناف بذكاء (الإضافة الجديدة)
+  if (cloudData && cloudData.itemData) {
+      ['col1', 'col2', 'col3', 'col4'].forEach(col => {
+          if (localItems[col]) {
+              localItems[col].forEach(localItem => {
+                  const exists = mergedItems[col].find(cloudItem => cloudItem.name === localItem.name);
+                  // إذا الصنف مو موجود بالسحابة واسمه مو فاضي، ضيفه
+                  if (!exists && localItem.name.trim() !== "") {
+                      mergedItems[col].push(localItem);
+                  }
+              });
+          }
+      });
+  }
+
+  // دمج الفواتير
   localBills.forEach(lb => {
       const exists = mergedBills.find(cb => cb.time === lb.time && cb.total === lb.total);
       if(!exists) mergedBills.push(lb);
   });
 
+  // دمج الزبائن
   localCusts.forEach(lc => {
       const exists = mergedCusts.find(cc => cc.name === lc.name);
       if(!exists) mergedCusts.push(lc);
   });
 
-  localStorage.removeItem('itemData_mob');
-  localStorage.removeItem('savedBills_mob');
-  localStorage.removeItem('customers_mob');
+  // تنظيف التخزين المحلي بعد الدمج لضمان الخصوصية
+  localStorage.removeItem('itemData');
+  localStorage.removeItem('savedBills');
+  localStorage.removeItem('customers');
 
   return { itemData: mergedItems, savedBills: mergedBills, customers: mergedCusts, rate: mergedRate };
 }
 
 function syncOnceThenListen(uid) {
-  const hasLocalData = localStorage.getItem('itemData_mob') || localStorage.getItem('savedBills_mob') || localStorage.getItem('customers_mob');
+  // نتحقق أولاً إذا كان في بيانات محلية مسجلة وقت الأوفلاين وبحاجة لدمج
+  const hasLocalData = localStorage.getItem('itemData') || localStorage.getItem('savedBills') || localStorage.getItem('customers');
 
   if (hasLocalData) {
-      db.collection('midoCashierMobile').doc(uid).get({ source: 'server' }).then(doc => {
+      // إذا في بيانات، لازم نجبر الكود يجيب الداتا من السيرفر مباشرة (source: 'server') عشان ما يمسح القديم بسبب الكاش
+      db.collection('midoCashier').doc(uid).get({ source: 'server' }).then(doc => {
           let cloudData = doc.exists ? doc.data() : null;
           const merged = mergeLocalAndCloud(cloudData);
           itemData = merged.itemData;
@@ -226,7 +242,8 @@ function syncOnceThenListen(uid) {
           saveDataToCloud();
           setupRealtimeListener(uid);
       }).catch(err => {
-          db.collection('midoCashierMobile').doc(uid).get().then(doc => {
+          // في حال فشل الاتصال بالسيرفر، بنجرب الطريقة العادية
+          db.collection('midoCashier').doc(uid).get().then(doc => {
               let cloudData = doc.exists ? doc.data() : null;
               const merged = mergeLocalAndCloud(cloudData);
               itemData = merged.itemData;
@@ -238,19 +255,16 @@ function syncOnceThenListen(uid) {
           }).catch(e => setupRealtimeListener(uid));
       });
   } else {
+      // إذا مافي بيانات محلية بدها دمج، بنشغل المستمع الفوري مباشرة بدون ما نكتب أو نمسح أي شي عالسحابة
       setupRealtimeListener(uid);
   }
 }
 
 function setupRealtimeListener(uid) {
-  unsubscribeData = db.collection('midoCashierMobile').doc(uid).onSnapshot(docSnap => {
+  unsubscribeData = db.collection('midoCashier').doc(uid).onSnapshot(docSnap => {
       if(docSnap.exists) {
           const data = docSnap.data();
-          if (data.itemData && data.itemData.col1) {
-              itemData = data.itemData;
-          } else {
-              itemData = { col1: [], col2: [], col3: [], col4: [] };
-          }
+          itemData = data.itemData || defaultData;
           savedBills = data.savedBills || [];
           customers = data.customers || [];
           rate = data.rate || 89000;
@@ -265,11 +279,12 @@ function saveData() {
   if (currentUid) {
       saveDataToCloud();
   } else {
-      localStorage.setItem('itemData_mob', JSON.stringify(itemData));
-      localStorage.setItem('savedBills_mob', JSON.stringify(savedBills));
-      localStorage.setItem('customers_mob', JSON.stringify(customers));
-      localStorage.setItem('exchangeRate_mob', rate);
+      localStorage.setItem('itemData', JSON.stringify(itemData));
+      localStorage.setItem('savedBills', JSON.stringify(savedBills));
+      localStorage.setItem('customers', JSON.stringify(customers));
+      localStorage.setItem('exchangeRate', rate);
       
+      // تحديث الشاشة فوراً في وضع الأوفلاين (ليعمل مثل السحابة تماماً)
       renderItems();
       if(!getEl('bills-modal').classList.contains('hidden')) renderBillsList();
       if(!getEl('debt-manage-modal').classList.contains('hidden')) renderCustomerList('manage');
@@ -278,7 +293,7 @@ function saveData() {
 
 function saveDataToCloud() {
   if (!currentUid) return;
-  db.collection('midoCashierMobile').doc(currentUid).set({
+  db.collection('midoCashier').doc(currentUid).set({
       itemData: itemData,
       savedBills: savedBills,
       customers: customers,
@@ -288,7 +303,7 @@ function saveDataToCloud() {
 
 function vibrate(el) { 
   if(navigator.vibrate) navigator.vibrate(30); 
-  if(el && el.tagName !== 'BODY') { 
+  if(el) { 
       el.style.transform='scale(0.92)'; 
       setTimeout(()=>el.style.transform='scale(1)', 100); 
   } 
@@ -325,11 +340,9 @@ function searchMainItems(term) {
   if (!term) { resDiv.style.display = 'none'; return; }
   let matches = [];
   ['col1','col2','col3','col4'].forEach(col => {
-      if(itemData && itemData[col] && Array.isArray(itemData[col])) {
-          itemData[col].forEach(item => {
-              if(item.name && item.name.includes(term)) matches.push(item);
-          });
-      }
+      itemData[col].forEach(item => {
+          if(item.name && item.name.includes(term)) matches.push(item);
+      });
   });
   if(matches.length === 0) { resDiv.style.display = 'none'; return; }
   let html = '';
@@ -995,7 +1008,7 @@ async function managePassword() {
   if(settingsPassword) { 
       const p = await promptModal("كلمة المرور الحالية:", true); 
       if(p === settingsPassword) { 
-          localStorage.removeItem('settingsPassword_mob'); 
+          localStorage.removeItem('settingsPassword'); 
           settingsPassword = null; 
           await alertModal("تم إلغاء الحماية"); 
           updatePassBtn();
@@ -1005,7 +1018,7 @@ async function managePassword() {
   } else { 
       const newP = await promptModal("كلمة مرور جديدة:", true); 
       if(newP) { 
-          localStorage.setItem('settingsPassword_mob', newP); 
+          localStorage.setItem('settingsPassword', newP); 
           settingsPassword = newP; 
           await alertModal("تمت الحماية"); 
           updatePassBtn();
@@ -1022,7 +1035,6 @@ function updatePassBtn() {
 
 function openAddItemModal() { getEl('new-item-name').value = ''; getEl('new-item-price').value = ''; selectCol('col1'); showModal('add-item-modal'); }
 function selectCol(col) { selectedColForAdd = col; ['col1','col2','col3','col4'].forEach(c => { getEl('btn-'+c).style.background = (c===col) ? '#eff6ff' : '#f8fafc'; getEl('btn-'+c).style.borderColor = (c===col) ? '#3b82f6' : '#e2e8f0'; }); }
-
 function confirmAddItem() { 
     const name = getEl('new-item-name').value.trim(); 
     const price = Number(getEl('new-item-price').value); 
@@ -1058,18 +1070,19 @@ function showDailyReport() {
 }
 
 function exportDataAndCopy() {
-    const backupData = { itemData, savedBills, customers, rate };
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData));
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(itemData));
     const downloadAnchorNode = document.createElement('a');
     downloadAnchorNode.setAttribute("href", dataStr);
-    downloadAnchorNode.setAttribute("download", "mido_mobile_backup.json");
+    downloadAnchorNode.setAttribute("download", "mido_backup.json");
     document.body.appendChild(downloadAnchorNode);
     downloadAnchorNode.click();
     downloadAnchorNode.remove();
     showToast("تم تنزيل ملف النسخة الاحتياطية");
 }
 
-function doCopy() { }
+function doCopy() {
+    // ما عاد إلها لزوم بس خليناها فاضية مشان ما تضرب أزرار قديمة
+}
 
 function openJsonImport() {
     const fileInput = document.createElement('input');
@@ -1084,7 +1097,7 @@ function openJsonImport() {
                 const imported = JSON.parse(event.target.result);
                 
                 if (imported.sections || (imported.itemData && imported.itemData["1"])) {
-                    await alertModal("هذا الملف خاص بنسخة الكمبيوتر (12 قسم) ولا يمكن استيراده للموبايل لأنه رح يخرب الشاشة!");
+                    await alertModal("هذا الملف خاص بنسخة الكمبيوتر ولا يمكن استيراده للموبايل!");
                     return;
                 }
                 
@@ -1118,13 +1131,10 @@ function openJsonImport() {
 async function clearAllData() { 
     if(await confirmModal("حذف كل شيء نهائياً؟")) { 
         if (currentUid) {
-            await db.collection('midoCashierMobile').doc(currentUid).delete();
+            // مسح البيانات من سحابة جوجل إذا كان المستخدم مسجل دخول
+            await db.collection('midoCashier').doc(currentUid).delete();
         }
-        localStorage.removeItem('itemData_mob');
-        localStorage.removeItem('savedBills_mob');
-        localStorage.removeItem('customers_mob');
-        localStorage.removeItem('exchangeRate_mob');
-        localStorage.removeItem('settingsPassword_mob');
+        localStorage.clear(); 
         location.reload(); 
     } 
 }
