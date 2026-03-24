@@ -58,7 +58,6 @@ if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js').catch(err => console.log(err));
 }
 
-// === التوافق مع زر الرجوع في الموبايل ===
 function openSettingsMenu() {
     getEl('menu-overlay').classList.add('active');
     getEl('settings-menu').classList.add('open');
@@ -113,7 +112,6 @@ function closeAllModals() {
     const receiptBox = getEl('receipt');
     if(receiptBox) receiptBox.classList.remove('show');
 }
-// ========================================================
 
 auth.onAuthStateChanged(user => {
   const nameTxt = getEl('user-name-txt');
@@ -185,19 +183,16 @@ function mergeLocalAndCloud(cloudData) {
   let localBills = JSON.parse(localStorage.getItem('savedBills_mob')) || [];
   let localCusts = JSON.parse(localStorage.getItem('customers_mob')) || [];
   
-  // تجهيز المتغيرات للدمج
   let mergedItems = cloudData && cloudData.itemData ? JSON.parse(JSON.stringify(cloudData.itemData)) : localItems;
   let mergedBills = cloudData && cloudData.savedBills ? [...cloudData.savedBills] : [];
   let mergedCusts = cloudData && cloudData.customers ? [...cloudData.customers] : [];
   let mergedRate = cloudData && cloudData.rate ? cloudData.rate : (parseFloat(localStorage.getItem('exchangeRate_mob')) || 89000);
 
-  // دمج الأصناف بذكاء (الإضافة الجديدة)
   if (cloudData && cloudData.itemData) {
       ['col1', 'col2', 'col3', 'col4'].forEach(col => {
           if (localItems[col]) {
               localItems[col].forEach(localItem => {
                   const exists = mergedItems[col].find(cloudItem => cloudItem.name === localItem.name);
-                  // إذا الصنف مو موجود بالسحابة واسمه مو فاضي، ضيفه
                   if (!exists && localItem.name.trim() !== "") {
                       mergedItems[col].push(localItem);
                   }
@@ -206,19 +201,16 @@ function mergeLocalAndCloud(cloudData) {
       });
   }
 
-  // دمج الفواتير
   localBills.forEach(lb => {
       const exists = mergedBills.find(cb => cb.time === lb.time && cb.total === lb.total);
       if(!exists) mergedBills.push(lb);
   });
 
-  // دمج الزبائن
   localCusts.forEach(lc => {
       const exists = mergedCusts.find(cc => cc.name === lc.name);
       if(!exists) mergedCusts.push(lc);
   });
 
-  // تنظيف التخزين المحلي بعد الدمج لضمان الخصوصية
   localStorage.removeItem('itemData_mob');
   localStorage.removeItem('savedBills_mob');
   localStorage.removeItem('customers_mob');
@@ -227,11 +219,9 @@ function mergeLocalAndCloud(cloudData) {
 }
 
 function syncOnceThenListen(uid) {
-  // نتحقق أولاً إذا كان في بيانات محلية مسجلة وقت الأوفلاين وبحاجة لدمج
   const hasLocalData = localStorage.getItem('itemData_mob') || localStorage.getItem('savedBills_mob') || localStorage.getItem('customers_mob');
 
   if (hasLocalData) {
-      // إذا في بيانات، لازم نجبر الكود يجيب الداتا من السيرفر مباشرة (source: 'server') عشان ما يمسح القديم بسبب الكاش
       db.collection('midoCashierMobile').doc(uid).get({ source: 'server' }).then(doc => {
           let cloudData = doc.exists ? doc.data() : null;
           const merged = mergeLocalAndCloud(cloudData);
@@ -242,7 +232,6 @@ function syncOnceThenListen(uid) {
           saveDataToCloud();
           setupRealtimeListener(uid);
       }).catch(err => {
-          // في حال فشل الاتصال بالسيرفر، بنجرب الطريقة العادية
           db.collection('midoCashierMobile').doc(uid).get().then(doc => {
               let cloudData = doc.exists ? doc.data() : null;
               const merged = mergeLocalAndCloud(cloudData);
@@ -255,7 +244,6 @@ function syncOnceThenListen(uid) {
           }).catch(e => setupRealtimeListener(uid));
       });
   } else {
-      // إذا مافي بيانات محلية بدها دمج، بنشغل المستمع الفوري مباشرة بدون ما نكتب أو نمسح أي شي عالسحابة
       setupRealtimeListener(uid);
   }
 }
@@ -284,7 +272,6 @@ function saveData() {
       localStorage.setItem('customers_mob', JSON.stringify(customers));
       localStorage.setItem('exchangeRate_mob', rate);
       
-      // تحديث الشاشة فوراً في وضع الأوفلاين (ليعمل مثل السحابة تماماً)
       renderItems();
       if(!getEl('bills-modal').classList.contains('hidden')) renderBillsList();
       if(!getEl('debt-manage-modal').classList.contains('hidden')) renderCustomerList('manage');
@@ -303,7 +290,7 @@ function saveDataToCloud() {
 
 function vibrate(el) { 
   if(navigator.vibrate) navigator.vibrate(30); 
-  if(el) { 
+  if(el && el.tagName !== 'BODY') { 
       el.style.transform='scale(0.92)'; 
       setTimeout(()=>el.style.transform='scale(1)', 100); 
   } 
@@ -1027,7 +1014,17 @@ function updatePassBtn() {
 
 function openAddItemModal() { getEl('new-item-name').value = ''; getEl('new-item-price').value = ''; selectCol('col1'); showModal('add-item-modal'); }
 function selectCol(col) { selectedColForAdd = col; ['col1','col2','col3','col4'].forEach(c => { getEl('btn-'+c).style.background = (c===col) ? '#eff6ff' : '#f8fafc'; getEl('btn-'+c).style.borderColor = (c===col) ? '#3b82f6' : '#e2e8f0'; }); }
-function confirmAddItem() { const name = getEl('new-item-name').value.trim(); const price = Number(getEl('new-item-price').value); if(!name) return alertModal("الاسم مطلوب!"); itemData[selectedColForAdd].push({name, price}); saveData(); goBackModalBtn(); showToast("تم إضافة الصنف"); }
+
+function confirmAddItem() { 
+    const name = getEl('new-item-name').value.trim(); 
+    const price = Number(getEl('new-item-price').value); 
+    if(!name) return alertModal("الاسم مطلوب!"); 
+    itemData[selectedColForAdd].push({name, price}); 
+    saveData(); 
+    renderItems(); 
+    goBackModalBtn(); 
+    showToast("تم إضافة الصنف"); 
+}
 
 function toggleSortMode() { sortMode = !sortMode; sortFirstSelection = null; getEl('sort-indicator').style.display = sortMode ? 'flex' : 'none'; if(sortMode) renderItems(); }
 function handleSortSelection(col, index, btn) { vibrate(btn); if (!sortFirstSelection) { sortFirstSelection = {col, index}; btn.classList.add('sorting-selected'); } else { const s1 = sortFirstSelection; const temp = itemData[s1.col][s1.index]; itemData[s1.col][s1.index] = itemData[col][index]; itemData[col][index] = temp; sortFirstSelection = null; saveData(); } }
@@ -1048,19 +1045,18 @@ function showDailyReport() {
 }
 
 function exportDataAndCopy() {
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(itemData));
+    const backupData = { itemData, savedBills, customers, rate };
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData));
     const downloadAnchorNode = document.createElement('a');
     downloadAnchorNode.setAttribute("href", dataStr);
-    downloadAnchorNode.setAttribute("download", "mido_backup.json");
+    downloadAnchorNode.setAttribute("download", "mido_mobile_backup.json");
     document.body.appendChild(downloadAnchorNode);
     downloadAnchorNode.click();
     downloadAnchorNode.remove();
     showToast("تم تنزيل ملف النسخة الاحتياطية");
 }
 
-function doCopy() {
-    // ما عاد إلها لزوم بس خليناها فاضية مشان ما تضرب أزرار قديمة
-}
+function doCopy() { }
 
 function openJsonImport() {
     const fileInput = document.createElement('input');
@@ -1072,7 +1068,22 @@ function openJsonImport() {
         const reader = new FileReader();
         reader.onload = async event => {
             try {
-                itemData = JSON.parse(event.target.result);
+                const imported = JSON.parse(event.target.result);
+                
+                if (imported.sections) {
+                    await alertModal("هذا الملف خاص بنسخة الكمبيوتر (12 قسم) ولا يمكن استيراده للموبايل!");
+                    return;
+                }
+                
+                if (imported.itemData) {
+                    itemData = imported.itemData;
+                    if(imported.savedBills) savedBills = imported.savedBills;
+                    if(imported.customers) customers = imported.customers;
+                    if(imported.rate) rate = imported.rate;
+                } else {
+                    itemData = imported;
+                }
+                
                 saveData();
                 renderItems();
                 await alertModal("تم استيراد الملف بنجاح!");
@@ -1088,7 +1099,6 @@ function openJsonImport() {
 async function clearAllData() { 
     if(await confirmModal("حذف كل شيء نهائياً؟")) { 
         if (currentUid) {
-            // مسح البيانات من سحابة جوجل إذا كان المستخدم مسجل دخول
             await db.collection('midoCashierMobile').doc(currentUid).delete();
         }
         localStorage.removeItem('itemData_mob');
