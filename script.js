@@ -141,11 +141,11 @@ auth.onAuthStateChanged(user => {
       
       if(unsubscribeData) { unsubscribeData(); unsubscribeData = null; }
       
-      itemData = JSON.parse(localStorage.getItem('itemData')) || defaultData;
-      savedBills = JSON.parse(localStorage.getItem('savedBills')) || [];
-      customers = JSON.parse(localStorage.getItem('customers')) || [];
-      rate = parseFloat(localStorage.getItem('exchangeRate')) || 89000;
-      settingsPassword = localStorage.getItem('settingsPassword') || null;
+      itemData = JSON.parse(localStorage.getItem('itemData_mob')) || defaultData;
+      savedBills = JSON.parse(localStorage.getItem('savedBills_mob')) || [];
+      customers = JSON.parse(localStorage.getItem('customers_mob')) || [];
+      rate = parseFloat(localStorage.getItem('exchangeRate_mob')) || 89000;
+      settingsPassword = localStorage.getItem('settingsPassword_mob') || null;
       
       renderItems();
       renderCustomerList('manage');
@@ -161,9 +161,9 @@ function toggleGoogleAuth() {
       confirmModal("هل تريد تسجيل الخروج؟ سيتم مسح البيانات من الشاشة لحمايتها.").then(res => {
           if (res) {
               auth.signOut().then(() => {
-                  localStorage.removeItem('itemData');
-                  localStorage.removeItem('savedBills');
-                  localStorage.removeItem('customers');
+                  localStorage.removeItem('itemData_mob');
+                  localStorage.removeItem('savedBills_mob');
+                  localStorage.removeItem('customers_mob');
                   itemData = defaultData;
                   savedBills = [];
                   customers = [];
@@ -181,15 +181,15 @@ function toggleGoogleAuth() {
 }
 
 function mergeLocalAndCloud(cloudData) {
-  let localItems = JSON.parse(localStorage.getItem('itemData')) || defaultData;
-  let localBills = JSON.parse(localStorage.getItem('savedBills')) || [];
-  let localCusts = JSON.parse(localStorage.getItem('customers')) || [];
+  let localItems = JSON.parse(localStorage.getItem('itemData_mob')) || defaultData;
+  let localBills = JSON.parse(localStorage.getItem('savedBills_mob')) || [];
+  let localCusts = JSON.parse(localStorage.getItem('customers_mob')) || [];
   
   // تجهيز المتغيرات للدمج
   let mergedItems = cloudData && cloudData.itemData ? JSON.parse(JSON.stringify(cloudData.itemData)) : localItems;
   let mergedBills = cloudData && cloudData.savedBills ? [...cloudData.savedBills] : [];
   let mergedCusts = cloudData && cloudData.customers ? [...cloudData.customers] : [];
-  let mergedRate = cloudData && cloudData.rate ? cloudData.rate : (parseFloat(localStorage.getItem('exchangeRate')) || 89000);
+  let mergedRate = cloudData && cloudData.rate ? cloudData.rate : (parseFloat(localStorage.getItem('exchangeRate_mob')) || 89000);
 
   // دمج الأصناف بذكاء (الإضافة الجديدة)
   if (cloudData && cloudData.itemData) {
@@ -219,20 +219,20 @@ function mergeLocalAndCloud(cloudData) {
   });
 
   // تنظيف التخزين المحلي بعد الدمج لضمان الخصوصية
-  localStorage.removeItem('itemData');
-  localStorage.removeItem('savedBills');
-  localStorage.removeItem('customers');
+  localStorage.removeItem('itemData_mob');
+  localStorage.removeItem('savedBills_mob');
+  localStorage.removeItem('customers_mob');
 
   return { itemData: mergedItems, savedBills: mergedBills, customers: mergedCusts, rate: mergedRate };
 }
 
 function syncOnceThenListen(uid) {
   // نتحقق أولاً إذا كان في بيانات محلية مسجلة وقت الأوفلاين وبحاجة لدمج
-  const hasLocalData = localStorage.getItem('itemData') || localStorage.getItem('savedBills') || localStorage.getItem('customers');
+  const hasLocalData = localStorage.getItem('itemData_mob') || localStorage.getItem('savedBills_mob') || localStorage.getItem('customers_mob');
 
   if (hasLocalData) {
       // إذا في بيانات، لازم نجبر الكود يجيب الداتا من السيرفر مباشرة (source: 'server') عشان ما يمسح القديم بسبب الكاش
-      db.collection('midoCashier').doc(uid).get({ source: 'server' }).then(doc => {
+      db.collection('midoCashierMobile').doc(uid).get({ source: 'server' }).then(doc => {
           let cloudData = doc.exists ? doc.data() : null;
           const merged = mergeLocalAndCloud(cloudData);
           itemData = merged.itemData;
@@ -243,7 +243,7 @@ function syncOnceThenListen(uid) {
           setupRealtimeListener(uid);
       }).catch(err => {
           // في حال فشل الاتصال بالسيرفر، بنجرب الطريقة العادية
-          db.collection('midoCashier').doc(uid).get().then(doc => {
+          db.collection('midoCashierMobile').doc(uid).get().then(doc => {
               let cloudData = doc.exists ? doc.data() : null;
               const merged = mergeLocalAndCloud(cloudData);
               itemData = merged.itemData;
@@ -261,7 +261,7 @@ function syncOnceThenListen(uid) {
 }
 
 function setupRealtimeListener(uid) {
-  unsubscribeData = db.collection('midoCashier').doc(uid).onSnapshot(docSnap => {
+  unsubscribeData = db.collection('midoCashierMobile').doc(uid).onSnapshot(docSnap => {
       if(docSnap.exists) {
           const data = docSnap.data();
           itemData = data.itemData || defaultData;
@@ -279,10 +279,10 @@ function saveData() {
   if (currentUid) {
       saveDataToCloud();
   } else {
-      localStorage.setItem('itemData', JSON.stringify(itemData));
-      localStorage.setItem('savedBills', JSON.stringify(savedBills));
-      localStorage.setItem('customers', JSON.stringify(customers));
-      localStorage.setItem('exchangeRate', rate);
+      localStorage.setItem('itemData_mob', JSON.stringify(itemData));
+      localStorage.setItem('savedBills_mob', JSON.stringify(savedBills));
+      localStorage.setItem('customers_mob', JSON.stringify(customers));
+      localStorage.setItem('exchangeRate_mob', rate);
       
       // تحديث الشاشة فوراً في وضع الأوفلاين (ليعمل مثل السحابة تماماً)
       renderItems();
@@ -293,7 +293,7 @@ function saveData() {
 
 function saveDataToCloud() {
   if (!currentUid) return;
-  db.collection('midoCashier').doc(currentUid).set({
+  db.collection('midoCashierMobile').doc(currentUid).set({
       itemData: itemData,
       savedBills: savedBills,
       customers: customers,
@@ -1000,7 +1000,7 @@ async function managePassword() {
   if(settingsPassword) { 
       const p = await promptModal("كلمة المرور الحالية:", true); 
       if(p === settingsPassword) { 
-          localStorage.removeItem('settingsPassword'); 
+          localStorage.removeItem('settingsPassword_mob'); 
           settingsPassword = null; 
           await alertModal("تم إلغاء الحماية"); 
           updatePassBtn();
@@ -1010,7 +1010,7 @@ async function managePassword() {
   } else { 
       const newP = await promptModal("كلمة مرور جديدة:", true); 
       if(newP) { 
-          localStorage.setItem('settingsPassword', newP); 
+          localStorage.setItem('settingsPassword_mob', newP); 
           settingsPassword = newP; 
           await alertModal("تمت الحماية"); 
           updatePassBtn();
@@ -1089,9 +1089,13 @@ async function clearAllData() {
     if(await confirmModal("حذف كل شيء نهائياً؟")) { 
         if (currentUid) {
             // مسح البيانات من سحابة جوجل إذا كان المستخدم مسجل دخول
-            await db.collection('midoCashier').doc(currentUid).delete();
+            await db.collection('midoCashierMobile').doc(currentUid).delete();
         }
-        localStorage.clear(); 
+        localStorage.removeItem('itemData_mob');
+        localStorage.removeItem('savedBills_mob');
+        localStorage.removeItem('customers_mob');
+        localStorage.removeItem('exchangeRate_mob');
+        localStorage.removeItem('settingsPassword_mob');
         location.reload(); 
     } 
 }
