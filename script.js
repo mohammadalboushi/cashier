@@ -21,7 +21,7 @@ let currentUid = null;
 let unsubscribeData = null;
 
 const defaultData = { col1: [], col2: [], col3: [], col4: [] };
-let itemData = defaultData;
+let itemData = { col1: [], col2: [], col3: [], col4: [] };
 let savedBills = [];
 let customers = [];
 let rate = 89000;
@@ -139,7 +139,7 @@ auth.onAuthStateChanged(user => {
       
       if(unsubscribeData) { unsubscribeData(); unsubscribeData = null; }
       
-      itemData = JSON.parse(localStorage.getItem('itemData_mob')) || defaultData;
+      itemData = JSON.parse(localStorage.getItem('itemData_mob')) || { col1: [], col2: [], col3: [], col4: [] };
       savedBills = JSON.parse(localStorage.getItem('savedBills_mob')) || [];
       customers = JSON.parse(localStorage.getItem('customers_mob')) || [];
       rate = parseFloat(localStorage.getItem('exchangeRate_mob')) || 89000;
@@ -162,7 +162,7 @@ function toggleGoogleAuth() {
                   localStorage.removeItem('itemData_mob');
                   localStorage.removeItem('savedBills_mob');
                   localStorage.removeItem('customers_mob');
-                  itemData = defaultData;
+                  itemData = { col1: [], col2: [], col3: [], col4: [] };
                   savedBills = [];
                   customers = [];
                   renderItems();
@@ -179,27 +179,21 @@ function toggleGoogleAuth() {
 }
 
 function mergeLocalAndCloud(cloudData) {
-  let localItems = JSON.parse(localStorage.getItem('itemData_mob')) || defaultData;
+  let localItems = JSON.parse(localStorage.getItem('itemData_mob')) || { col1: [], col2: [], col3: [], col4: [] };
   let localBills = JSON.parse(localStorage.getItem('savedBills_mob')) || [];
   let localCusts = JSON.parse(localStorage.getItem('customers_mob')) || [];
   
-  let mergedItems = cloudData && cloudData.itemData ? JSON.parse(JSON.stringify(cloudData.itemData)) : localItems;
+  let mergedItems = { col1: [], col2: [], col3: [], col4: [] };
+  
+  if (cloudData && cloudData.itemData && cloudData.itemData.col1) {
+      mergedItems = JSON.parse(JSON.stringify(cloudData.itemData));
+  } else {
+      mergedItems = JSON.parse(JSON.stringify(localItems));
+  }
+
   let mergedBills = cloudData && cloudData.savedBills ? [...cloudData.savedBills] : [];
   let mergedCusts = cloudData && cloudData.customers ? [...cloudData.customers] : [];
   let mergedRate = cloudData && cloudData.rate ? cloudData.rate : (parseFloat(localStorage.getItem('exchangeRate_mob')) || 89000);
-
-  if (cloudData && cloudData.itemData) {
-      ['col1', 'col2', 'col3', 'col4'].forEach(col => {
-          if (localItems[col]) {
-              localItems[col].forEach(localItem => {
-                  const exists = mergedItems[col].find(cloudItem => cloudItem.name === localItem.name);
-                  if (!exists && localItem.name.trim() !== "") {
-                      mergedItems[col].push(localItem);
-                  }
-              });
-          }
-      });
-  }
 
   localBills.forEach(lb => {
       const exists = mergedBills.find(cb => cb.time === lb.time && cb.total === lb.total);
@@ -222,7 +216,8 @@ function syncOnceThenListen(uid) {
   const hasLocalData = localStorage.getItem('itemData_mob') || localStorage.getItem('savedBills_mob') || localStorage.getItem('customers_mob');
 
   if (hasLocalData) {
-      db.collection('midoCashierMobile').doc(uid).get({ source: 'server' }).then(doc => {
+      // تعديل هنا: استخدام مجموعة midoCashier المسموحة، مع ملف يحمل اسمك + _mob
+      db.collection('midoCashier').doc(uid + '_mob').get({ source: 'server' }).then(doc => {
           let cloudData = doc.exists ? doc.data() : null;
           const merged = mergeLocalAndCloud(cloudData);
           itemData = merged.itemData;
@@ -232,7 +227,7 @@ function syncOnceThenListen(uid) {
           saveDataToCloud();
           setupRealtimeListener(uid);
       }).catch(err => {
-          db.collection('midoCashierMobile').doc(uid).get().then(doc => {
+          db.collection('midoCashier').doc(uid + '_mob').get().then(doc => {
               let cloudData = doc.exists ? doc.data() : null;
               const merged = mergeLocalAndCloud(cloudData);
               itemData = merged.itemData;
@@ -249,10 +244,15 @@ function syncOnceThenListen(uid) {
 }
 
 function setupRealtimeListener(uid) {
-  unsubscribeData = db.collection('midoCashierMobile').doc(uid).onSnapshot(docSnap => {
+  // تعديل هنا للاتصال بالملف الخاص بالموبايل فقط
+  unsubscribeData = db.collection('midoCashier').doc(uid + '_mob').onSnapshot(docSnap => {
       if(docSnap.exists) {
           const data = docSnap.data();
-          itemData = data.itemData || defaultData;
+          if (data.itemData && data.itemData.col1) {
+              itemData = data.itemData;
+          } else {
+              itemData = { col1: [], col2: [], col3: [], col4: [] };
+          }
           savedBills = data.savedBills || [];
           customers = data.customers || [];
           rate = data.rate || 89000;
@@ -280,7 +280,8 @@ function saveData() {
 
 function saveDataToCloud() {
   if (!currentUid) return;
-  db.collection('midoCashierMobile').doc(currentUid).set({
+  // تعديل هنا للحفظ بالملف الخاص بالموبايل
+  db.collection('midoCashier').doc(currentUid + '_mob').set({
       itemData: itemData,
       savedBills: savedBills,
       customers: customers,
@@ -327,9 +328,11 @@ function searchMainItems(term) {
   if (!term) { resDiv.style.display = 'none'; return; }
   let matches = [];
   ['col1','col2','col3','col4'].forEach(col => {
-      itemData[col].forEach(item => {
-          if(item.name && item.name.includes(term)) matches.push(item);
-      });
+      if(itemData && itemData[col] && Array.isArray(itemData[col])) {
+          itemData[col].forEach(item => {
+              if(item.name && item.name.includes(term)) matches.push(item);
+          });
+      }
   });
   if(matches.length === 0) { resDiv.style.display = 'none'; return; }
   let html = '';
@@ -777,7 +780,15 @@ async function clearDailyReport() {
 
 function renderItems() { 
   ['col1','col2','col3','col4'].forEach(colKey => { 
-      const colEl = getEl(colKey); colEl.innerHTML = ''; 
+      const colEl = getEl(colKey); 
+      if (!colEl) return;
+      colEl.innerHTML = ''; 
+      
+      if (!itemData || !itemData[colKey] || !Array.isArray(itemData[colKey])) {
+          if (!itemData) itemData = { col1: [], col2: [], col3: [], col4: [] };
+          itemData[colKey] = [];
+      }
+      
       itemData[colKey].forEach((item, index) => { 
           const btn = document.createElement('button'); btn.className = 'btn'; btn.textContent = item.name; 
           if(item.price === 0 && item.name === "") { btn.style.opacity = "0.5"; btn.style.borderStyle = "dashed"; btn.textContent = ""; } 
@@ -1019,6 +1030,11 @@ function confirmAddItem() {
     const name = getEl('new-item-name').value.trim(); 
     const price = Number(getEl('new-item-price').value); 
     if(!name) return alertModal("الاسم مطلوب!"); 
+    
+    if (!itemData[selectedColForAdd] || !Array.isArray(itemData[selectedColForAdd])) {
+        itemData[selectedColForAdd] = [];
+    }
+    
     itemData[selectedColForAdd].push({name, price}); 
     saveData(); 
     renderItems(); 
@@ -1070,19 +1086,25 @@ function openJsonImport() {
             try {
                 const imported = JSON.parse(event.target.result);
                 
-                if (imported.sections) {
-                    await alertModal("هذا الملف خاص بنسخة الكمبيوتر (12 قسم) ولا يمكن استيراده للموبايل!");
+                if (imported.sections || (imported.itemData && imported.itemData["1"])) {
+                    await alertModal("هذا الملف خاص بنسخة الكمبيوتر (12 قسم) ولا يمكن استيراده للموبايل لأنه رح يخرب الشاشة!");
                     return;
                 }
                 
                 if (imported.itemData) {
                     itemData = imported.itemData;
-                    if(imported.savedBills) savedBills = imported.savedBills;
-                    if(imported.customers) customers = imported.customers;
-                    if(imported.rate) rate = imported.rate;
-                } else {
+                } else if (imported.col1) {
                     itemData = imported;
                 }
+                
+                if (!itemData || Array.isArray(itemData)) itemData = { col1: [], col2: [], col3: [], col4: [] };
+                ['col1','col2','col3','col4'].forEach(col => {
+                    if (!itemData[col] || !Array.isArray(itemData[col])) itemData[col] = [];
+                });
+
+                if(imported.savedBills) savedBills = imported.savedBills;
+                if(imported.customers) customers = imported.customers;
+                if(imported.rate) rate = imported.rate;
                 
                 saveData();
                 renderItems();
@@ -1099,7 +1121,8 @@ function openJsonImport() {
 async function clearAllData() { 
     if(await confirmModal("حذف كل شيء نهائياً؟")) { 
         if (currentUid) {
-            await db.collection('midoCashierMobile').doc(currentUid).delete();
+            // مسح ملف الموبايل من السحابة حصراً بدون ما نمسح الكمبيوتر
+            await db.collection('midoCashier').doc(currentUid + '_mob').delete();
         }
         localStorage.removeItem('itemData_mob');
         localStorage.removeItem('savedBills_mob');
