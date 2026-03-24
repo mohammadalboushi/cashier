@@ -216,8 +216,7 @@ function syncOnceThenListen(uid) {
   const hasLocalData = localStorage.getItem('itemData_mob') || localStorage.getItem('savedBills_mob') || localStorage.getItem('customers_mob');
 
   if (hasLocalData) {
-      // تعديل هنا: استخدام مجموعة midoCashier المسموحة، مع ملف يحمل اسمك + _mob
-      db.collection('midoCashier').doc(uid + '_mob').get({ source: 'server' }).then(doc => {
+      db.collection('midoCashierMobile').doc(uid).get({ source: 'server' }).then(doc => {
           let cloudData = doc.exists ? doc.data() : null;
           const merged = mergeLocalAndCloud(cloudData);
           itemData = merged.itemData;
@@ -227,7 +226,7 @@ function syncOnceThenListen(uid) {
           saveDataToCloud();
           setupRealtimeListener(uid);
       }).catch(err => {
-          db.collection('midoCashier').doc(uid + '_mob').get().then(doc => {
+          db.collection('midoCashierMobile').doc(uid).get().then(doc => {
               let cloudData = doc.exists ? doc.data() : null;
               const merged = mergeLocalAndCloud(cloudData);
               itemData = merged.itemData;
@@ -244,8 +243,7 @@ function syncOnceThenListen(uid) {
 }
 
 function setupRealtimeListener(uid) {
-  // تعديل هنا للاتصال بالملف الخاص بالموبايل فقط
-  unsubscribeData = db.collection('midoCashier').doc(uid + '_mob').onSnapshot(docSnap => {
+  unsubscribeData = db.collection('midoCashierMobile').doc(uid).onSnapshot(docSnap => {
       if(docSnap.exists) {
           const data = docSnap.data();
           if (data.itemData && data.itemData.col1) {
@@ -280,8 +278,7 @@ function saveData() {
 
 function saveDataToCloud() {
   if (!currentUid) return;
-  // تعديل هنا للحفظ بالملف الخاص بالموبايل
-  db.collection('midoCashier').doc(currentUid + '_mob').set({
+  db.collection('midoCashierMobile').doc(currentUid).set({
       itemData: itemData,
       savedBills: savedBills,
       customers: customers,
@@ -1121,8 +1118,7 @@ function openJsonImport() {
 async function clearAllData() { 
     if(await confirmModal("حذف كل شيء نهائياً؟")) { 
         if (currentUid) {
-            // مسح ملف الموبايل من السحابة حصراً بدون ما نمسح الكمبيوتر
-            await db.collection('midoCashier').doc(currentUid + '_mob').delete();
+            await db.collection('midoCashierMobile').doc(currentUid).delete();
         }
         localStorage.removeItem('itemData_mob');
         localStorage.removeItem('savedBills_mob');
