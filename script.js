@@ -191,33 +191,114 @@ auth.onAuthStateChanged(user => {
   }
 });
 
-function toggleGoogleAuth() {
-  closeSettingsMenuBtn();
-  if (currentUid) {
-      confirmModal("هل تريد تسجيل الخروج؟ سيتم مسح البيانات من الشاشة لحمايتها.").then(res => {
-          if (res) {
-              auth.signOut().then(() => {
-                  localStorage.removeItem('itemData');
-                  localStorage.removeItem('sections');
-                  localStorage.removeItem('savedBills');
-                  localStorage.removeItem('customers');
-                  sections = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"];
-                  itemData = {};
-                  sections.forEach(s => itemData[s] = createEmptySection());
-                  currentSection = "1";
-                  savedBills = [];
-                  customers = [];
-                  renderItems();
-                  reset();
-                  closeAllModals();
-                  showToast('تم تسجيل الخروج وتأمين الشاشة');
-              });
-          }
-      });
-  } else {
-      showToast('جاري الاتصال بجوجل...');
-      auth.signInWithPopup(provider).catch(e => showToast('فشل الدخول'));
-  }
+function handleAuthAction() {
+    closeSettingsMenuBtn();
+    if (currentUid) {
+        confirmModal("هل تريد تسجيل الخروج؟ سيتم مسح البيانات من الشاشة لحمايتها.").then(res => {
+            if (res) {
+                auth.signOut().then(() => {
+                    localStorage.removeItem('itemData');
+                    localStorage.removeItem('sections');
+                    localStorage.removeItem('savedBills');
+                    localStorage.removeItem('customers');
+                    sections = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"];
+                    itemData = {};
+                    sections.forEach(s => itemData[s] = createEmptySection());
+                    currentSection = "1";
+                    savedBills = [];
+                    customers = [];
+                    renderItems();
+                    reset();
+                    closeAllModals();
+                    showToast('تم تسجيل الخروج وتأمين الشاشة');
+                });
+            }
+        });
+    } else {
+        openLoginModal();
+    }
+}
+
+function openLoginModal() {
+    const currentEmail = getEl('signup-email').value;
+    const currentPass = getEl('signup-password').value;
+    closeAllModals();
+    getEl('login-email').value = currentEmail;
+    getEl('login-password').value = currentPass;
+    showModal('login-modal');
+}
+
+function openSignupModal() {
+    const currentEmail = getEl('login-email').value;
+    const currentPass = getEl('login-password').value;
+    closeAllModals();
+    getEl('signup-email').value = currentEmail;
+    getEl('signup-password').value = currentPass;
+    showModal('signup-modal');
+}
+
+function loginWithEmail() {
+    const email = getEl('login-email').value.trim();
+    const password = getEl('login-password').value;
+    
+    if (!email || !password) return alertModal("الرجاء إدخال البريد وكلمة المرور");
+    
+    showToast('جاري تسجيل الدخول...');
+    auth.signInWithEmailAndPassword(email, password)
+        .then(() => {
+            closeAllModals();
+            showToast('تم تسجيل الدخول بنجاح');
+        })
+        .catch(error => {
+            if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+                alertModal("البريد الإلكتروني غير مسجل، أو كلمة المرور خاطئة");
+            } else if (error.code === 'auth/invalid-email') {
+                alertModal("صيغة البريد الإلكتروني غير صحيحة");
+            } else {
+                alertModal("حدث خطأ: " + error.message);
+            }
+        });
+}
+
+function registerNewUser() {
+    const email = getEl('login-email').value.trim();
+    const password = getEl('login-password').value;
+    
+    if (!email || !password) return alertModal("الرجاء إدخال البريد وكلمة المرور");
+    if (password.length < 6) return alertModal("كلمة المرور يجب أن تكون 6 أحرف على الأقل");
+    
+    showToast('جاري إنشاء الحساب...');
+    auth.createUserWithEmailAndPassword(email, password)
+        .then(() => {
+            // تسجيل خروج فوري لأننا بدنا ياه يسجل دخول بنفسه مثل ما طلبت
+            auth.signOut();
+            showToast('تم إنشاء الحساب بنجاح');
+            
+            // إظهار رسالة توجيهية صغيرة وإبقاء الإيميل والباسورد بالمربعات
+            const msgEl = getEl('login-msg-hint');
+            if(msgEl) msgEl.style.display = 'block';
+        })
+        .catch(error => {
+            if (error.code === 'auth/email-already-in-use') {
+                alertModal("هذا البريد الإلكتروني مستخدم مسبقاً، يمكنك تسجيل الدخول مباشرة");
+            } else if (error.code === 'auth/invalid-email') {
+                alertModal("صيغة البريد الإلكتروني غير صحيحة");
+            } else {
+                alertModal("حدث خطأ: " + error.message);
+            }
+        });
+}
+
+function loginWithGoogle() {
+    showToast('جاري الاتصال بجوجل...');
+    auth.signInWithPopup(provider)
+        .then(() => {
+            closeAllModals();
+            showToast('تم تسجيل الدخول عبر جوجل');
+        })
+        .catch(e => {
+            showToast('فشل الدخول');
+        });
 }
 
 function mergeLocalAndCloud(cloudData) {
@@ -311,6 +392,15 @@ function setupRealtimeListener(uid) {
           renderItems();
           if(!getEl('bills-modal').classList.contains('hidden')) renderBillsList();
           if(!getEl('debt-manage-modal').classList.contains('hidden')) renderCustomerList('manage');
+      } else {
+          // تصفير الذاكرة والواجهة بالكامل إذا كان الحساب جديداً ولا يملك بيانات
+          sections = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"];
+          itemData = {};
+          sections.forEach(s => itemData[s] = createEmptySection());
+          currentSection = "1";
+          savedBills = [];
+          customers = [];
+          renderItems();
       }
   });
 }
@@ -1237,7 +1327,7 @@ async function executeSaveBill(selectedName) {
 }
 
 function reset() { 
-  vibrate(event.target); 
+  if(typeof event !== 'undefined' && event) vibrate(event.target); 
   total = 0; 
   receiptData = {}; 
   custNameInput = ""; 
