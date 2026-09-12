@@ -23,12 +23,11 @@ let unsubscribeData = null;
 // نظام الأقسام والـ 42 زر
 function createEmptySection() {
     return { 
-        col1: Array(7).fill(null), 
-        col2: Array(7).fill(null), 
-        col3: Array(7).fill(null), 
-        col4: Array(7).fill(null),
-        col5: Array(7).fill(null),
-        col6: Array(7).fill(null)
+        col1: Array(6).fill(null), 
+        col2: Array(6).fill(null), 
+        col3: Array(6).fill(null), 
+        col4: Array(6).fill(null),
+        col5: Array(6).fill(null)
     };
 }
 
@@ -41,9 +40,9 @@ if (!itemData || !itemData[sections[0]]) {
     let newData = {};
     sections.forEach(s => newData[s] = createEmptySection());
     if (itemData && itemData.col1) { // داتا قديمة عمودية فقط
-        ['col1','col2','col3','col4','col5','col6'].forEach(col => {
+        ['col1','col2','col3','col4','col5'].forEach(col => {
             if(itemData[col]) {
-                itemData[col].forEach((it, idx) => { if(idx < 7 && it && it.name) newData[sections[0]][col][idx] = it; });
+                itemData[col].forEach((it, idx) => { if(idx < 6 && it && it.name) newData[sections[0]][col][idx] = it; });
             }
         });
     }
@@ -237,9 +236,9 @@ function mergeLocalAndCloud(cloudData) {
        let migrated = {};
        mergedSections.forEach(s => migrated[s] = createEmptySection());
        if (mergedItems.col1) {
-           ['col1','col2','col3','col4','col5','col6'].forEach(col => {
+           ['col1','col2','col3','col4','col5'].forEach(col => {
                if(mergedItems[col]) {
-                   mergedItems[col].forEach((it, idx) => { if(idx<7 && it && it.name) migrated[mergedSections[0]][col][idx] = it; });
+                   mergedItems[col].forEach((it, idx) => { if(idx<6 && it && it.name) migrated[mergedSections[0]][col][idx] = it; });
                }
            });
        }
@@ -427,14 +426,14 @@ function searchMainItems(term) {
   const resDiv = getEl('main-search-results');
   if (!term) { resDiv.style.display = 'none'; return; }
   let matches = [];
-  sections.forEach(sec => {
-      ['col1','col2','col3','col4','col5','col6'].forEach(col => {
-          if(!itemData[sec][col]) itemData[sec][col] = Array(7).fill(null);
-          itemData[sec][col].forEach(item => {
-              if(item && item.name && item.name.includes(term)) matches.push(item);
+            sections.forEach(sec => {
+              ['col1','col2','col3','col4','col5'].forEach(col => {
+                  if(!itemData[sec][col]) itemData[sec][col] = Array(6).fill(null);
+                  itemData[sec][col].forEach(item => {
+                      if(item && item.name && item.name.includes(term)) matches.push(item);
+                  });
+              });
           });
-      });
-  });
   if(matches.length === 0) { resDiv.style.display = 'none'; return; }
   let html = '';
   matches.forEach(m => {
@@ -574,19 +573,27 @@ function openCustomerStatement(name) {
 
   const totalLBP = billsWithOriginalIndex.reduce((sum, b) => sum + b.total, 0);
   const totalUSD = totalLBP / rate;
-  const color = totalLBP >= 0 ? '#ef4444' : '#10b981';
 
   getEl('statement-title').innerHTML = `<span>كشف حساب: ${name}</span><span style="cursor:pointer; color:#94a3b8; font-size:22px; padding:0 10px;" onclick="showAllCustomerBills('${name}')">⋮</span>`;
   
-  getEl('statement-summary').innerHTML = `
-      <div style="display:flex; justify-content:space-around; width:100%;">
-          <div style="text-align:center;">
-              <div style="font-size:12px; color:#64748b; font-weight:bold;">المجموع (L.L.)</div>
-              <div style="font-weight:900; color:${color}; font-size:18px;">${fmt(totalLBP)}</div>
+  const summaryEl = getEl('statement-summary');
+  summaryEl.style.background = totalLBP > 0 ? 'linear-gradient(135deg, #fff0f0 0%, #ffe4e6 100%)' : (totalLBP < 0 ? 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)' : 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)');
+  summaryEl.style.border = totalLBP > 0 ? '1px solid #fecaca' : (totalLBP < 0 ? '1px solid #bbf7d0' : '1px solid #e2e8f0');
+  summaryEl.style.padding = '12px 16px';
+  summaryEl.style.borderRadius = '12px';
+  summaryEl.style.boxShadow = totalLBP > 0 ? '0 4px 12px rgba(225,29,72,0.05)' : (totalLBP < 0 ? '0 4px 12px rgba(16,185,129,0.05)' : 'none');
+
+  const mainColor = totalLBP > 0 ? '#e11d48' : (totalLBP < 0 ? '#059669' : '#475569');
+  
+  summaryEl.innerHTML = `
+      <div style="text-align:center; font-size:14px; color:${mainColor}; font-weight:900; margin-bottom:10px;">مجموع الحساب</div>
+      <div style="display:flex; align-items:center;">
+          <div style="flex:1; text-align:center; direction:ltr;">
+              <div style="font-weight:900; color:${mainColor}; font-size:18px;">${fmt(totalLBP)} <span style="font-size:12px;">L.L.</span></div>
           </div>
-          <div style="text-align:center;">
-              <div style="font-size:12px; color:#64748b; font-weight:bold;">المجموع ($)</div>
-              <div style="font-weight:900; color:${color}; font-size:18px;">$${totalUSD.toFixed(2)}</div>
+          <div style="width:1px; height:25px; background:${mainColor}; opacity:0.2;"></div>
+          <div style="flex:1; text-align:center; direction:ltr;">
+              <div style="font-weight:900; color:${mainColor}; font-size:18px;">$ ${totalUSD.toFixed(2)}</div>
           </div>
       </div>
   `;
@@ -1012,17 +1019,17 @@ function renderSectionsBar() {
 
 function renderItems() { 
   renderSectionsBar();
-  ['col1','col2','col3','col4','col5','col6'].forEach(colKey => { 
+  ['col1','col2','col3','col4','col5'].forEach(colKey => { 
       const colEl = getEl(colKey); colEl.innerHTML = ''; 
-      if (!itemData[currentSection][colKey]) itemData[currentSection][colKey] = Array(7).fill(null);
+      if (!itemData[currentSection][colKey]) itemData[currentSection][colKey] = Array(6).fill(null);
       const colData = itemData[currentSection][colKey];
-      for (let i = 0; i < 7; i++) {
+      for (let i = 0; i < 6; i++) {
           const item = colData[i];
           const btn = document.createElement('button'); 
           
           if(item && item.name) { 
               btn.className = 'btn'; 
-              btn.textContent = item.name; 
+              btn.innerHTML = `<span class="btn-text">${item.name}</span>`; 
               if (item.color) btn.style.borderLeftColor = item.color; 
           } else {
               btn.className = 'btn empty-slot';
@@ -1391,21 +1398,33 @@ function openJsonImport() {
     const fileInput = document.createElement('input');
     fileInput.type = 'file';
     fileInput.accept = '.json';
+    fileInput.style.display = 'none';
+    document.body.appendChild(fileInput); // إضافة العنصر للصفحة ليسمح المتصفح بفتحه
+
     fileInput.onchange = e => {
         const file = e.target.files[0];
-        if (!file) return;
+        if (!file) {
+            document.body.removeChild(fileInput);
+            return;
+        }
         const reader = new FileReader();
         reader.onload = async event => {
             try {
                 const imported = JSON.parse(event.target.result);
+                // استيراد كافة البيانات (الأصناف، الأقسام، الفواتير، الزبائن، وسعر الصرف)
                 if (imported.itemData) itemData = imported.itemData;
                 if (imported.sections) sections = imported.sections;
+                if (imported.savedBills) savedBills = imported.savedBills;
+                if (imported.customers) customers = imported.customers;
+                if (imported.rate) rate = imported.rate;
+                
                 saveData();
                 renderItems();
                 await alertModal("تم استيراد الملف بنجاح!");
             } catch (err) {
                 await alertModal("الملف مضروب أو صيغته غلط");
             }
+            document.body.removeChild(fileInput); // تنظيف الصفحة من الزر المخفي
         };
         reader.readAsText(file);
     };
@@ -1471,58 +1490,90 @@ async function deleteSpecificBill() {
     }
 }
 
-function downloadBillAsImage() {
-    if (selectedBillOriginalIndex === null) return;
+async function generateBillCanvas() {
+    if (selectedBillOriginalIndex === null) return null;
     const billCard = document.getElementById(`bill-card-${selectedBillOriginalIndex}`);
-    if (!billCard) return;
+    if (!billCard) return null;
     
-    showToast("جاري تجهيز الفاتورة...");
-    
-    // 1. إنشاء نسخة من الفاتورة لتصويرها براحة خارج تعقيدات النوافذ والسكرول
     const clone = billCard.cloneNode(true);
-    
-    // 2. ضبط خصائص النسخة لتكون مثالية للصورة ومخفية عن عين المستخدم
     clone.style.position = 'fixed';
     clone.style.top = '0';
     clone.style.right = '0';
-    clone.style.width = '350px'; // عرض ثابت ليظهر بشكل فاتورة احترافية
+    clone.style.width = '350px'; 
     clone.style.margin = '0'; 
-    clone.style.padding = '15px'; // إضافة حشوة لجمالية الصورة
-    clone.style.background = '#ffffff'; // خلفية بيضاء سادة للصورة
-    clone.style.zIndex = '-9999'; // إخفاء النسخة خلف الواجهة
-    clone.setAttribute('dir', 'rtl'); // إجبار الاتجاه العربي
+    clone.style.padding = '15px'; 
+    clone.style.background = '#ffffff'; 
+    clone.style.zIndex = '-9999'; 
+    clone.setAttribute('dir', 'rtl'); 
     
-    // 3. إضافة اسم الزبون وترويسة فوق الفاتورة المستنسخة فقط لجمالية الصورة
     const header = document.createElement('div');
     header.innerHTML = `<div style="text-align:center; font-weight:900; color:#0d47a1; margin-bottom:12px; font-size:16px; border-bottom:2px solid #e2e8f0; padding-bottom:8px;">فاتورة حساب - ${currentStatementCustomer}</div>`;
     clone.insertBefore(header, clone.firstChild);
 
-    // 4. لصق النسخة في الصفحة
     document.body.appendChild(clone);
     
-    // 5. التقاط الصورة للنسخة النظيفة
-    html2canvas(clone, { 
-        scale: 3, 
-        backgroundColor: "#ffffff",
-        useCORS: true,
-        logging: false
-    }).then(canvas => {
-        // تنظيف وحذف النسخة فوراً
+    try {
+        const canvas = await html2canvas(clone, { 
+            scale: 3, 
+            backgroundColor: "#ffffff",
+            useCORS: true,
+            logging: false
+        });
         if (document.body.contains(clone)) document.body.removeChild(clone);
+        return canvas;
+    } catch (err) {
+        if (document.body.contains(clone)) document.body.removeChild(clone);
+        return null;
+    }
+}
 
-        const link = document.createElement('a');
-        // تم إضافة رقم الفاتورة التسلسلي (الفهرس) ليكون اسم الصورة فريداً ولا يزعجك المتصفح
-        link.download = `فاتورة_${currentStatementCustomer}_رقم_${selectedBillOriginalIndex}.png`;
-        link.href = canvas.toDataURL("image/png");
-        link.click();
-        
-        goBackModalBtn(); // إغلاق قائمة الخيارات
-        showToast("تم تنزيل الفاتورة كصورة بنجاح");
-    }).catch(err => {
-        // تنظيف في حال حدوث خطأ
-        if (document.body.contains(clone)) document.body.removeChild(clone);
+async function downloadBillAsImage() {
+    showToast("جاري تجهيز الفاتورة...");
+    const canvas = await generateBillCanvas();
+    if (!canvas) {
         showToast("حدث خطأ أثناء استخراج الصورة");
-    });
+        return;
+    }
+    
+    const link = document.createElement('a');
+    link.download = `فاتورة_${currentStatementCustomer}_رقم_${selectedBillOriginalIndex}.png`;
+    link.href = canvas.toDataURL("image/png");
+    link.click();
+    
+    goBackModalBtn();
+    showToast("تم تنزيل الفاتورة كصورة بنجاح");
+}
+
+async function shareBillAsImage() {
+    showToast("جاري تجهيز الفاتورة للمشاركة...");
+    const canvas = await generateBillCanvas();
+    if (!canvas) {
+        showToast("حدث خطأ أثناء استخراج الصورة");
+        return;
+    }
+    
+    canvas.toBlob(async (blob) => {
+        if (!blob) {
+            showToast("حدث خطأ أثناء توليد الصورة");
+            return;
+        }
+        const file = new File([blob], `فاتورة_${currentStatementCustomer}.png`, { type: "image/png" });
+        
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            try {
+                await navigator.share({
+                    files: [file],
+                    title: "مشاركة الفاتورة",
+                    text: `فاتورة حساب - ${currentStatementCustomer}`
+                });
+                goBackModalBtn();
+            } catch (error) {
+                console.log("تم الإلغاء أو حدث خطأ", error);
+            }
+        } else {
+            showToast("متصفحك لا يدعم المشاركة المباشرة للصور");
+        }
+    }, "image/png");
 }
 
 window.onload = () => {
