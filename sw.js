@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cashier-app-v2';
+const CACHE_NAME = 'cashier-app-v3';
 
 // الملفات الأساسية التي يجب تخزينها ليعمل التطبيق بدون إنترنت
 const ASSETS_TO_CACHE = [
